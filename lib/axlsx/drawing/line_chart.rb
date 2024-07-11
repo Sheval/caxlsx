@@ -38,15 +38,21 @@ module Axlsx
     # @return [Symbol]
     attr_reader :grouping
 
+    # Render second axis for the chart
+    # @return [Boolean]
+    attr_reader :dual_axis
+
     # Creates a new line chart object
     # @param [GraphicFrame] frame The workbook that owns this chart.
     # @option options [Cell, String] title
     # @option options [Boolean] show_legend
     # @option options [Symbol] grouping
+    # @option options [Boolean] dual_axis
     # @see Chart
     def initialize(frame, options = {})
       @vary_colors = false
       @grouping = :standard
+      @dual_axis = false
       super
       @series_type = LineSeries
       @d_lbls = nil
@@ -56,6 +62,14 @@ module Axlsx
     def grouping=(v)
       RestrictionValidator.validate "LineChart.grouping", [:percentStacked, :standard, :stacked], v
       @grouping = v
+    end
+
+    # Render second axis for the chart
+    # @param [Boolean] v
+    # @return [Boolean]
+    def dual_axis=(v)
+      Axlsx.validate_boolean(v)
+      @dual_axis = v
     end
 
     # The node name to use in serialization. As LineChart is used as the
@@ -76,15 +90,33 @@ module Axlsx
     # @return [String]
     def to_xml_string(str = +'')
       super do
+        if dual_axis
+          render_dual_axis_chart(str)
+        else
+          str << "<c:" << node_name << ">"
+          str << '<c:grouping val="' << grouping.to_s << '"/>'
+          str << '<c:varyColors val="' << vary_colors.to_s << '"/>'
+          @series.each { |ser| ser.to_xml_string(str) }
+          @d_lbls.to_xml_string(str) if @d_lbls
+          yield if block_given?
+          axes.to_xml_string(str, ids: true)
+          str << "</c:" << node_name << ">"
+          axes.to_xml_string(str)
+        end
+      end
+    end
+
+    def render_dual_axis_chart(str)
+      [axes, secondary_axes].each_with_index do |axs, idx|
         str << "<c:" << node_name << ">"
         str << '<c:grouping val="' << grouping.to_s << '"/>'
         str << '<c:varyColors val="' << vary_colors.to_s << '"/>'
-        @series.each { |ser| ser.to_xml_string(str) }
+        @series[idx].to_xml_string(str)
         @d_lbls.to_xml_string(str) if @d_lbls
         yield if block_given?
-        axes.to_xml_string(str, ids: true)
+        axs.to_xml_string(str, ids: true)
         str << "</c:" << node_name << ">"
-        axes.to_xml_string(str)
+        axs.to_xml_string(str)
       end
     end
 
@@ -92,7 +124,18 @@ module Axlsx
     # axis.
     # @return [Axes]
     def axes
-      @axes ||= Axes.new(cat_axis: CatAxis, val_axis: ValAxis)
+      @axes ||= Axes.new(cat_axis: CatAxis, val_axis: ValAxis).tap do |axes|
+        axes[:val_axis].axPos = :l
+      end
+    end
+
+    def secondary_axes
+      @secondary_axes ||= Axes.new(cat_axis: CatAxis, val_axis: ValAxis).tap do |axes|
+        axes[:val_axis].axPos = :r
+        axes[:val_axis].gridlines = false
+        axes[:cat_axis].delete = 1
+        axes[:cat_axis].gridlines = false
+      end
     end
   end
 end

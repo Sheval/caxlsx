@@ -199,7 +199,7 @@ module Axlsx
       # some potential value in implementing this in full. Very detailed!
       str << '<c:txPr><a:bodyPr rot="' << @label_rotation.to_s << '"/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:endParaRPr/></a:p></c:txPr>'
       str << '<c:crossAx val="' << @cross_axis.id.to_s << '"/>'
-      str << '<c:crosses val="' << @crosses.to_s << '"/>'
+      str << '<c:crosses val="' << (@ax_pos == :r ? 'max' : @crosses.to_s) << '"/>'
     end
   end
 end
